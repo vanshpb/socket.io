@@ -1,3 +1,4 @@
+// server.js
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -7,13 +8,16 @@ const dev = process.env.NODE_ENV !== "production";
 const app = next({ dev });
 const handle = app.getRequestHandler();
 
+const port = process.env.PORT || 3000;
+
 app.prepare().then(() => {
   const server = express();
   const httpServer = http.createServer(server);
 
+  // Socket.IO setup
   const io = new Server(httpServer, {
     cors: {
-      origin: "*", // allow frontend from same domain
+      origin: "*",
       methods: ["GET", "POST"],
     },
   });
@@ -44,11 +48,12 @@ app.prepare().then(() => {
     });
   });
 
-  // let Next.js handle everything else
-  server.all("*", (req, res) => handle(req, res));
+  // Next.js pages
+  server.all("*", (req, res) => {
+    return handle(req, res);
+  });
 
-  const PORT = process.env.PORT || 3000;
-  httpServer.listen(PORT, () => {
-    console.log(`🚀 App running on http://localhost:${PORT}`);
+  httpServer.listen(port, () => {
+    console.log(`🚀 Server ready on http://localhost:${port}`);
   });
 });

@@ -13,7 +13,7 @@ export default function ChatPage() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    const socket = io("http://localhost:2000");
+    const socket = io("https://chatapp.onrender.com");
     socketRef.current = socket;
 
     socket.on("connect", () => {
