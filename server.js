@@ -1,41 +1,54 @@
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
-const cors = require("cors");
+const next = require("next");
 
-const app = express();
-app.use(cors());
+const dev = process.env.NODE_ENV !== "production";
+const app = next({ dev });
+const handle = app.getRequestHandler();
 
-const server = http.createServer(app);
+app.prepare().then(() => {
+  const server = express();
+  const httpServer = http.createServer(server);
 
-const io = new Server(server, {
-  cors: {
-    origin: "http://localhost:3000", // Next.js dev server
-    methods: ["GET", "POST"],
-  },
-});
-
-let users = {}; // socket.id -> username
-
-io.on("connection", (socket) => {
-  console.log("🟢 User connected:", socket.id);
-
-  socket.on("register", (username) => {
-    users[socket.id] = username;
-    io.emit("user-list", Object.values(users));
+  const io = new Server(httpServer, {
+    cors: {
+      origin: "*", // allow frontend from same domain
+      methods: ["GET", "POST"],
+    },
   });
 
-  socket.on("chat-message", ({ from, text }) => {
-    io.emit("chat-message", { from, text }); // broadcast to everyone
+  let users = {};
+
+  io.on("connection", (socket) => {
+    console.log("🟢 User connected:", socket.id);
+
+    socket.on("register", (username) => {
+      users[socket.id] = username;
+      io.emit("user-list", Object.values(users));
+    });
+
+    socket.on("private-message", ({ from, to, text }) => {
+      const targetSocketId = Object.keys(users).find(
+        (id) => users[id] === to
+      );
+      if (targetSocketId) {
+        io.to(targetSocketId).emit("private-message", { from, text });
+      }
+    });
+
+    socket.on("disconnect", () => {
+      console.log("🔴 User disconnected:", socket.id);
+      delete users[socket.id];
+      io.emit("user-list", Object.values(users));
+    });
   });
 
-  socket.on("disconnect", () => {
-    console.log("🔴 User disconnected:", socket.id);
-    delete users[socket.id];
-    io.emit("user-list", Object.values(users));
-  });
-});
+  // let Next.js handle everything else
+  server.all("*", (req, res) => handle(req, res));
 
-server.listen(2000, () => {
-  console.log("🚀 Socket.IO server running on http://localhost:2000");
+  const PORT = process.env.PORT || 3000;
+  httpServer.listen(PORT, () => {
+    console.log(`🚀 App running on http://localhost:${PORT}`);
+  });
 });
